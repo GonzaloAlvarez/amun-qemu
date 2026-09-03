@@ -1,22 +1,24 @@
 #!/bin/bash
 set -e
-
+# amun-qemu/test — stage amun core + this plugin, run the amun harness (L2).
+#   ./test [platform] [amun/test flags...]    DEBUG=1 for a shell before teardown
+#   AMUN_CORE=~/dev/amun ./test ...           local amun core instead of GitHub main
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-AMUN_TMPDIR=$(mktemp -d)
+PLUGIN="$(basename "$SCRIPT_DIR")"
+STAGING=$(mktemp -d)
+trap 'rm -rf "$STAGING"' EXIT SIGINT SIGTERM
 
-trap 'rm -rf "$AMUN_TMPDIR"' EXIT SIGINT SIGTERM
-
-git clone https://github.com/GonzaloAlvarez/amun.git "$AMUN_TMPDIR/amun"
-cp -r "$SCRIPT_DIR" "$AMUN_TMPDIR/amun-qemu"
-
-# -p qemu stays LAST: amun/test's -p greedily consumes following non-dash args.
-if [ $# -gt 0 ] && [[ "$1" != -* ]]; then
-    # Classic local path: ./test <platform> [extra flags] (tart/QEMU; TCG only)
-    PLATFORM="$1"; shift
-    "$AMUN_TMPDIR/amun/test" "$PLATFORM" "$@" -p qemu
-else
-    # Default: billable cloud KVM run — Debian 13 amd64 devbox with real
-    # /dev/kvm (nested virt doesn't work under macOS hvf). Extra flags
-    # (e.g. --profile <aws-profile>) pass straight through.
-    "$AMUN_TMPDIR/amun/test" debian --cloud --kvm "$@" -p qemu
+# Default platform for a bare ./test (override with any amun/test args).
+if [ $# -eq 0 ]; then
+    set -- debian --cloud
 fi
+
+if [ -n "${AMUN_CORE:-}" ]; then
+    cp -r "$AMUN_CORE" "$STAGING/amun"
+else
+    git clone --depth 1 https://github.com/GonzaloAlvarez/amun.git "$STAGING/amun"
+fi
+cp -r "$SCRIPT_DIR" "$STAGING/$PLUGIN"
+
+# -p stays LAST: amun/test's -p greedily consumes trailing non-dash args.
+exec "$STAGING/amun/test" "$@" -p "${PLUGIN#amun-}"
