@@ -1,0 +1,41 @@
+---
+# Add the connecting user to the `kvm` group (when the group exists) so
+# /dev/kvm is usable without sudo in a fresh SSH session. Group-add only —
+# the role makes NO assertion about /dev/kvm existing: it must converge on
+# tart VMs, Pis and containers, where KVM may be absent. KVM presence is
+# checked by ./verify, conditionally.
+qemu_manage_kvm_group: true
+
+# --- Debian/Ubuntu ---
+# qemu-system-arm ships BOTH the qemu-system-arm and qemu-system-aarch64
+# binaries on arm64 Debian. qemu-efi-aarch64 = AAVMF firmware
+# (/usr/share/AAVMF/AAVMF_CODE*.fd); ovmf = /usr/share/OVMF/OVMF_CODE*.fd.
+qemu_packages_debian_common:
+  - qemu-utils
+  - genisoimage
+  - socat
+qemu_packages_debian_arch_map:
+  x86_64:
+    - qemu-system-x86
+    - ovmf
+  aarch64:
+    - qemu-system-arm
+    - qemu-efi-aarch64
+
+# --- Arch ---
+# qemu is split per target since qemu 7.0; no genisoimage in the repos —
+# cdrtools provides mkisofs. edk2-ovmf = /usr/share/edk2/x64/OVMF_CODE*.fd.
+# NOTE: mainline Arch names the aarch64 firmware edk2-aarch64; older Arch
+# Linux ARM snapshots may still ship it as edk2-armvirt — override this map
+# if pacman can't find it.
+qemu_packages_arch_common:
+  - qemu-img
+  - cdrtools
+  - socat
+qemu_packages_arch_arch_map:
+  x86_64:
+    - qemu-system-x86
+    - edk2-ovmf
+  aarch64:
+    - qemu-system-aarch64
+    - edk2-aarch64

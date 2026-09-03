@@ -1,0 +1,78 @@
+---
+- name: Assert supported OS family (Linux-only by design)
+  ansible.builtin.assert:
+    that:
+      - ansible_facts['os_family'] in ['Debian', 'Archlinux']
+    fail_msg: >-
+      amun-qemu supports Debian/Ubuntu and Arch only (got
+      {{ ansible_facts['os_family'] }}); on macOS use brew qemu directly.
+
+- name: Assert supported architecture
+  ansible.builtin.assert:
+    that:
+      - ansible_facts['architecture'] in ['x86_64', 'aarch64']
+    fail_msg: >-
+      amun-qemu supports x86_64 and aarch64 only (got
+      {{ ansible_facts['architecture'] }}).
+
+- name: Install QEMU packages (Debian)
+  ansible.builtin.apt:
+    name: "{{ qemu_packages_debian_common
+              + qemu_packages_debian_arch_map[ansible_facts['architecture']] }}"
+    state: present
+    update_cache: true
+    install_recommends: false
+  become: true
+  retries: 5
+  delay: 5
+  register: apt_qemu
+  until: apt_qemu is success
+  when: ansible_facts['os_family'] == 'Debian'
+
+- name: Install QEMU packages (Arch)
+  community.general.pacman:
+    name: "{{ qemu_packages_arch_common
+              + qemu_packages_arch_arch_map[ansible_facts['architecture']] }}"
+    state: present
+    update_cache: true
+  become: true
+  retries: 5
+  delay: 5
+  register: pacman_qemu
+  until: pacman_qemu is success
+  when: ansible_facts['os_family'] == 'Archlinux'
+
+- name: Look up the kvm group
+  ansible.builtin.getent:
+    database: group
+    key: kvm
+    fail_key: false
+  when: qemu_manage_kvm_group | bool
+
+- name: Add user to the kvm group (group-add only, no /dev/kvm assertion)
+  ansible.builtin.user:
+    name: "{{ ansible_facts['user_id'] }}"
+    groups: kvm
+    append: true
+  become: true
+  when:
+    - qemu_manage_kvm_group | bool
+    - ansible_facts.getent_group is defined
+    - ansible_facts.getent_group.kvm is defined
+    - ansible_facts.getent_group.kvm is not none
+
+- name: Verify the native system emulator runs
+  ansible.builtin.command: "qemu-system-{{ ansible_facts['architecture'] }} --version"
+  changed_when: false
+
+- name: Verify qemu-img runs
+  ansible.builtin.command: qemu-img --version
+  changed_when: false
+
+- name: Verify an ISO tool is present (genisoimage or mkisofs)
+  ansible.builtin.shell: command -v genisoimage || command -v mkisofs
+  changed_when: false
+
+- name: Verify socat runs (socat has no --version; -V is it)
+  ansible.builtin.command: socat -V
+  changed_when: false

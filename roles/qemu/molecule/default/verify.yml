@@ -1,0 +1,46 @@
+---
+- name: Verify
+  hosts: all
+  vars:
+    expected_arch_pkgs: "{{ {'x86_64': ['qemu-system-x86', 'ovmf'],
+                             'aarch64': ['qemu-system-arm', 'qemu-efi-aarch64']}[ansible_facts['architecture']] }}"
+    expected_fw_glob: "{{ '/usr/share/OVMF/OVMF_CODE*.fd' if ansible_facts['architecture'] == 'x86_64'
+                          else '/usr/share/AAVMF/AAVMF_CODE*.fd' }}"
+  tasks:
+    - name: Gather package facts
+      ansible.builtin.package_facts:
+        manager: auto
+
+    - name: Assert common packages installed
+      ansible.builtin.assert:
+        that:
+          - "'qemu-utils' in ansible_facts.packages"
+          - "'genisoimage' in ansible_facts.packages"
+          - "'socat' in ansible_facts.packages"
+        fail_msg: "a required common package is missing"
+
+    - name: Assert arch-conditional packages installed
+      ansible.builtin.assert:
+        that: item in ansible_facts.packages
+        fail_msg: "{{ item }} missing for {{ ansible_facts['architecture'] }}"
+      loop: "{{ expected_arch_pkgs }}"
+
+    - name: Check the native emulator runs
+      ansible.builtin.command: "qemu-system-{{ ansible_facts['architecture'] }} --version"
+      changed_when: false
+
+    - name: Check qemu-img runs
+      ansible.builtin.command: qemu-img --version
+      changed_when: false
+
+    - name: Check a UEFI firmware blob exists (never pin one filename)
+      ansible.builtin.shell: "ls {{ expected_fw_glob }}"
+      changed_when: false
+
+    - name: Check genisoimage resolvable
+      ansible.builtin.shell: command -v genisoimage
+      changed_when: false
+
+    - name: Check socat resolvable
+      ansible.builtin.shell: command -v socat
+      changed_when: false

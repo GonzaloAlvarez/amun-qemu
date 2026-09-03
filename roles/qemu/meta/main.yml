@@ -1,0 +1,17 @@
+---
+galaxy_info:
+  role_name: qemu
+  namespace: gonzaloalvarez
+  author: Gonzalo Alvarez
+  description: QEMU virtualization tooling (system emulator, qemu-img, UEFI firmware, genisoimage, socat) on Debian or Arch
+  license: GPL-3.0
+  min_ansible_version: "2.14"
+  platforms:
+    - name: Debian
+      versions:
+        - bookworm
+        - trixie
+    - name: Archlinux
+      versions:
+        - any
+dependencies: []
