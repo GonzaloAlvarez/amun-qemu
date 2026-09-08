@@ -25,6 +25,15 @@ qemu_packages_debian_arch_map:
 # --- Arch ---
 # qemu is split per target since qemu 7.0; no genisoimage in the repos —
 # cdrtools provides mkisofs. edk2-ovmf = /usr/share/edk2/x64/OVMF_CODE*.fd.
+# Arch also splits the display devices out of qemu-system-x86, so a guest with
+# `-device virtio-vga` (kora's UEFI desktop guests) fails with "'virtio-vga' is
+# not a valid device model name" unless qemu-hw-display-virtio-vga is present.
+# Debian's qemu-system-x86 bundles these, hence the Arch-only entries.
+# BOTH modules are required and Arch's virtio-vga package does not depend on
+# the virtio-gpu one: virtio-vga is a PCI wrapper that instantiates a
+# virtio-gpu-device child, so with only the wrapper installed the type
+# registers, passes `-device help`, and then qemu SEGFAULTS in its error path
+# while initializing the missing child (qemu 11.1, Arch packaging).
 # NOTE: mainline Arch names the aarch64 firmware edk2-aarch64; older Arch
 # Linux ARM snapshots may still ship it as edk2-armvirt — override this map
 # if pacman can't find it.
@@ -35,7 +44,11 @@ qemu_packages_arch_common:
 qemu_packages_arch_arch_map:
   x86_64:
     - qemu-system-x86
+    - qemu-hw-display-virtio-gpu
+    - qemu-hw-display-virtio-vga
     - edk2-ovmf
   aarch64:
     - qemu-system-aarch64
+    - qemu-hw-display-virtio-gpu
+    - qemu-hw-display-virtio-gpu-pci
     - edk2-aarch64

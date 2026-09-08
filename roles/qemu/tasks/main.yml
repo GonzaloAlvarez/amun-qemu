@@ -69,6 +69,19 @@
   ansible.builtin.command: qemu-img --version
   changed_when: false
 
+# Arch ships the display devices as separate packages, so a UEFI desktop guest
+# ('-device virtio-vga') can otherwise fail minutes into a VM run - either with
+# "not a valid device model name" (module absent) or a qemu SEGFAULT (wrapper
+# present, virtio-gpu-device child missing). Both types must be registered.
+- name: Verify the virtio display devices are available
+  ansible.builtin.shell: |
+    set -o pipefail
+    have=$(qemu-system-{{ ansible_facts['architecture'] }} -device help 2>&1)
+    for dev in virtio-gpu-device {{ 'virtio-vga' if ansible_facts['architecture'] == 'x86_64' else 'virtio-gpu-pci' }}; do
+      printf '%s\n' "$have" | grep -qE "name \"$dev\"" || { echo "missing: $dev"; exit 1; }
+    done
+  changed_when: false
+
 - name: Verify an ISO tool is present (genisoimage or mkisofs)
   ansible.builtin.shell: command -v genisoimage || command -v mkisofs
   changed_when: false
